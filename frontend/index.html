@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Analytics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary:#6366f1; --success:#10b981; --warning:#f59e0b; --danger:#ef4444; --dark:#1e293b; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:linear-gradient(135deg,#667eea,#764ba2); font-family:'Segoe UI',sans-serif; min-height:100vh; }
+        .sidebar { position:fixed; left:0; top:0; width:240px; height:100vh; background:rgba(15,23,42,0.97); padding:1.5rem 1rem; z-index:1000; display:flex; flex-direction:column; }
+        .sidebar-logo { color:#fff; font-size:1.3rem; font-weight:700; margin-bottom:2rem; display:flex; align-items:center; gap:.5rem; }
+        .sidebar-menu { list-style:none; flex:1; }
+        .sidebar-menu li { margin-bottom:.25rem; }
+        .sidebar-menu a { color:rgba(255,255,255,.65); text-decoration:none; display:flex; align-items:center; gap:.75rem; padding:.65rem 1rem; border-radius:8px; transition:.2s; font-size:.9rem; }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background:rgba(99,102,241,.25); color:#fff; }
+        .user-info { color:rgba(255,255,255,.7); font-size:.8rem; padding:.75rem 1rem; background:rgba(255,255,255,.05); border-radius:8px; margin-bottom:.5rem; }
+        .logout-btn { width:100%; padding:.65rem; background:rgba(239,68,68,.15); color:#ef4444; border:none; border-radius:8px; cursor:pointer; font-weight:600; transition:.2s; }
+        .logout-btn:hover { background:#ef4444; color:#fff; }
+        .main { margin-left:240px; padding:1.5rem; }
+        .topbar { background:rgba(255,255,255,.97); border-radius:14px; padding:.85rem 1.5rem; margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 20px rgba(0,0,0,.08); }
+        .live-badge { background:#10b981; color:#fff; padding:.35rem .9rem; border-radius:20px; font-weight:700; font-size:.8rem; animation:pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+        .metric-card { background:#fff; border-radius:16px; padding:1.25rem; box-shadow:0 4px 16px rgba(0,0,0,.07); position:relative; overflow:hidden; transition:.2s; }
+        .metric-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,var(--primary),var(--success)); }
+        .metric-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.1); }
+        .metric-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; margin-bottom:.75rem; }
+        .metric-value { font-size:2rem; font-weight:700; background:linear-gradient(135deg,var(--primary),var(--success)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .metric-label { color:#64748b; font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+        .card { background:#fff; border-radius:16px; padding:1.25rem; box-shadow:0 4px 16px rgba(0,0,0,.07); margin-bottom:1.25rem; border:none; }
+        .card-title { font-size:1rem; font-weight:700; color:var(--dark); margin-bottom:1rem; }
+        .health-bar-wrap { background:#e2e8f0; border-radius:6px; height:10px; overflow:hidden; }
+        .health-bar { height:100%; background:linear-gradient(90deg,#10b981,#3b82f6); border-radius:6px; transition:width .5s; }
+        .badge-INFO { background:#dbeafe; color:#2563eb; }
+        .badge-WARNING { background:#fef3c7; color:#d97706; }
+        .badge-ERROR { background:#fee2e2; color:#dc2626; }
+        .badge-CRITICAL { background:#fce7f3; color:#be185d; }
+        .badge-DEBUG { background:#f3f4f6; color:#6b7280; }
+        .log-badge { padding:.25rem .6rem; border-radius:5px; font-size:.72rem; font-weight:700; }
+        .table-wrap { max-height:420px; overflow-y:auto; }
+        table { width:100%; border-collapse:collapse; font-size:.82rem; }
+        thead th { position:sticky; top:0; background:#f8fafc; padding:.65rem .75rem; text-align:left; font-size:.7rem; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:.04em; }
+        tbody td { padding:.6rem .75rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+        tbody tr:hover { background:#f8fafc; }
+        .country-row { display:flex; justify-content:space-between; align-items:center; padding:.5rem 0; border-bottom:1px solid #f1f5f9; font-size:.85rem; }
+        .country-row:last-child { border:none; }
+        .mini-bar { width:80px; height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden; }
+        .mini-bar-fill { height:100%; background:linear-gradient(90deg,var(--primary),var(--success)); border-radius:3px; }
+        .alert-row { display:flex; align-items:center; gap:.75rem; padding:.75rem; border-radius:10px; margin-bottom:.5rem; }
+        .alert-row.HIGH { background:#fef2f2; border-left:3px solid #ef4444; }
+        .alert-row.CRITICAL { background:#fdf2f8; border-left:3px solid #be185d; }
+        .alert-row.MEDIUM { background:#fffbeb; border-left:3px solid #f59e0b; }
+        .anomaly-badge { background:#fce7f3; color:#be185d; padding:.2rem .5rem; border-radius:4px; font-size:.7rem; font-weight:700; }
+        .filter-btn { padding:.35rem .8rem; border:2px solid #e2e8f0; background:#fff; border-radius:7px; cursor:pointer; font-size:.8rem; font-weight:600; transition:.2s; }
+        .filter-btn.active, .filter-btn:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="sidebar-logo"><i class="fas fa-chart-line"></i> LogAnalytics</div>
+    <ul class="sidebar-menu">
+        <li><a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li><a href="#"><i class="fas fa-list"></i> Logs</a></li>
+        <li><a href="#"><i class="fas fa-robot"></i> Anomalies</a></li>
+        <li><a href="#"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+        <li><a href="#"><i class="fas fa-bell"></i> Alerts</a></li>
+        <li><a href="#"><i class="fas fa-globe"></i> Geographic</a></li>
+    </ul>
+    <div class="user-info"><i class="fas fa-user-circle"></i> <span id="sidebarUser">Loading...</span> &nbsp;<span id="sidebarRole" style="background:rgba(99,102,241,.3);padding:.1rem .4rem;border-radius:4px;font-size:.7rem;"></span></div>
+    <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+</div>
+
+<div class="main">
+    <div class="topbar">
+        <div style="font-weight:700;font-size:1.1rem;color:var(--dark)"><i class="fas fa-chart-line" style="color:var(--primary)"></i> Real-Time Dashboard</div>
+        <div style="display:flex;align-items:center;gap:1rem">
+            <span style="font-size:.82rem;color:#64748b">Anomalies: <strong id="topAnomalies" style="color:#be185d">0</strong></span>
+            <div class="live-badge"><i class="fas fa-circle" style="font-size:.5rem"></i> LIVE</div>
+        </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff"><i class="fas fa-file-alt"></i></div>
+                <div class="metric-label">Total Logs</div>
+                <div class="metric-value" id="totalLogs">0</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon" style="background:linear-gradient(135deg,#f093fb,#f5576c);color:#fff"><i class="fas fa-exclamation-triangle"></i></div>
+                <div class="metric-label">Errors</div>
+                <div class="metric-value" id="errorCount">0</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe);color:#fff"><i class="fas fa-clock"></i></div>
+                <div class="metric-label">Avg Response</div>
+                <div class="metric-value" id="avgResponse">0<span style="font-size:1rem">ms</span></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-icon" style="background:linear-gradient(135deg,#43e97b,#38f9d7);color:#fff"><i class="fas fa-users"></i></div>
+                <div class="metric-label">Active Users</div>
+                <div class="metric-value" id="activeUsers">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Health -->
+    <div class="card mb-3">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+            <div class="card-title mb-0"><i class="fas fa-heartbeat" style="color:var(--success)"></i> System Health</div>
+            <strong id="healthVal" style="color:var(--success);font-size:1.2rem">100%</strong>
+        </div>
+        <div class="health-bar-wrap"><div class="health-bar" id="healthBar" style="width:100%"></div></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-title"><i class="fas fa-chart-pie" style="color:var(--primary)"></i> Log Distribution</div>
+                <canvas id="levelChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-title"><i class="fas fa-chart-line" style="color:var(--primary)"></i> Activity Timeline (Last 1 Hour)</div>
+                <canvas id="activityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sources + Geo -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-title"><i class="fas fa-server" style="color:var(--primary)"></i> Top Sources</div>
+                <canvas id="sourcesChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-title"><i class="fas fa-globe" style="color:var(--primary)"></i> Geographic Distribution</div>
+                <div id="geoList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Predictions -->
+    <div class="card mb-3">
+        <div class="card-title"><i class="fas fa-brain" style="color:#be185d"></i> Predictive Analytics - Next 6 Hours Error Forecast</div>
+        <canvas id="predChart" height="80"></canvas>
+    </div>
+
+    <!-- Alerts -->
+    <div class="card mb-3">
+        <div class="card-title"><i class="fas fa-bell" style="color:var(--warning)"></i> Active Alerts</div>
+        <div id="alertsList"><p class="text-muted" style="font-size:.85rem">No alerts</p></div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <div class="card-title mb-0"><i class="fas fa-list" style="color:var(--primary)"></i> Recent Logs</div>
+            <div style="display:flex;gap:.5rem">
+                <button class="filter-btn active" onclick="setFilter(this,'')">All</button>
+                <button class="filter-btn" onclick="setFilter(this,'ERROR')">Errors</button>
+                <button class="filter-btn" onclick="setFilter(this,'WARNING')">Warnings</button>
+                <button class="filter-btn" onclick="setFilter(this,'CRITICAL')">Critical</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Time</th><th>Level</th><th>Message</th><th>Source</th><th>User</th><th>Response</th><th>Country</th><th>Anomaly</th></tr></thead>
+                <tbody id="logsBody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#94a3b8">Loading logs...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+<script>
+const API = '/api';
+let charts = {};
+let logFilter = '';
+
+async function logout() {
+    await fetch(`${API}/logout`, { method:'POST', credentials:'include' });
+    window.location.href = '/login';
+}
+
+function setFilter(btn, level) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    logFilter = level;
+    fetchLogs();
+}
+
+function initCharts() {
+    charts.level = new Chart(document.getElementById('levelChart'), {
+        type: 'doughnut',
+        data: { labels:['INFO','WARNING','ERROR','DEBUG','CRITICAL'], datasets:[{ data:[0,0,0,0,0], backgroundColor:['#10b981','#f59e0b','#ef4444','#6b7280','#be185d'], borderWidth:0 }] },
+        options: { responsive:true, plugins:{ legend:{ position:'bottom', labels:{ padding:10, font:{ size:11 } } } } }
+    });
+    charts.activity = new Chart(document.getElementById('activityChart'), {
+        type: 'line',
+        data: { labels:[], datasets:[{ label:'Logs', data:[], borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,.1)', tension:.4, fill:true, borderWidth:2 }] },
+        options: { responsive:true, scales:{ y:{ beginAtZero:true }, x:{ grid:{ display:false } } }, plugins:{ legend:{ display:false } } }
+    });
+    charts.sources = new Chart(document.getElementById('sourcesChart'), {
+        type: 'bar',
+        data: { labels:[], datasets:[{ data:[], backgroundColor:'rgba(99,102,241,.8)', borderRadius:6 }] },
+        options: { responsive:true, scales:{ y:{ beginAtZero:true }, x:{ grid:{ display:false } } }, plugins:{ legend:{ display:false } } }
+    });
+    charts.pred = new Chart(document.getElementById('predChart'), {
+        type: 'line',
+        data: { labels:[], datasets:[
+            { label:'Predicted', data:[], borderColor:'#be185d', backgroundColor:'rgba(190,24,93,.1)', tension:.4, fill:true, borderWidth:2 },
+            { label:'Upper', data:[], borderColor:'rgba(190,24,93,.3)', borderDash:[5,5], tension:.4, fill:false, borderWidth:1 },
+            { label:'Lower', data:[], borderColor:'rgba(190,24,93,.3)', borderDash:[5,5], tension:.4, fill:false, borderWidth:1 }
+        ]},
+        options: { responsive:true, scales:{ y:{ beginAtZero:true }, x:{ grid:{ display:false } } }, plugins:{ legend:{ position:'bottom' } } }
+    });
+}
+
+async function fetchMetrics() {
+    try {
+        const res = await fetch(`${API}/metrics`, { credentials:'include' });
+        if (res.status === 401) { window.location.href = '/login'; return; }
+        const { data } = await res.json();
+
+        document.getElementById('totalLogs').textContent   = data.total_logs.toLocaleString();
+        document.getElementById('errorCount').textContent  = data.error_count.toLocaleString();
+        document.getElementById('avgResponse').innerHTML   = data.avg_response_time + '<span style="font-size:1rem">ms</span>';
+        document.getElementById('activeUsers').textContent = data.active_users;
+        document.getElementById('topAnomalies').textContent = data.anomaly_count;
+
+        const h = data.system_health;
+        document.getElementById('healthVal').textContent = h + '%';
+        document.getElementById('healthVal').style.color = h > 80 ? '#10b981' : h > 50 ? '#f59e0b' : '#ef4444';
+        document.getElementById('healthBar').style.width = h + '%';
+
+        // Level chart
+        const lv = { INFO:0, WARNING:0, ERROR:0, DEBUG:0, CRITICAL:0 };
+        data.logs_by_level.forEach(l => lv[l.log_level] = l.count);
+        charts.level.data.datasets[0].data = [lv.INFO, lv.WARNING, lv.ERROR, lv.DEBUG, lv.CRITICAL];
+        charts.level.update();
+
+        // Activity chart
+        if (data.recent_activity.length) {
+            charts.activity.data.labels = data.recent_activity.map(a => a.t);
+            charts.activity.data.datasets[0].data = data.recent_activity.map(a => a.count);
+            charts.activity.update();
+        }
+
+        // Sources chart
+        if (data.top_sources.length) {
+            charts.sources.data.labels = data.top_sources.map(s => s.source);
+            charts.sources.data.datasets[0].data = data.top_sources.map(s => s.count);
+            charts.sources.update();
+        }
+
+        // Geo
+        if (data.geographic_data.length) {
+            const max = Math.max(...data.geographic_data.map(g => g.count));
+            document.getElementById('geoList').innerHTML = data.geographic_data.slice(0,8).map(g => `
+                <div class="country-row">
+                    <span><strong>${g.country}</strong> <small style="color:#94a3b8">${g.count}</small></span>
+                    <div class="mini-bar"><div class="mini-bar-fill" style="width:${(g.count/max)*100}%"></div></div>
+                </div>`).join('');
+        }
+
+        // Predictions
+        if (data.predictions && data.predictions.length) {
+            charts.pred.data.labels = data.predictions.map(p => p.hour);
+            charts.pred.data.datasets[0].data = data.predictions.map(p => p.predicted);
+            charts.pred.data.datasets[1].data = data.predictions.map(p => p.upper);
+            charts.pred.data.datasets[2].data = data.predictions.map(p => p.lower);
+            charts.pred.update();
+        }
+
+        // User info
+        document.getElementById('sidebarUser').textContent = sessionStorage.getItem('username') || 'User';
+        document.getElementById('sidebarRole').textContent = sessionStorage.getItem('role') || '';
+
+    } catch(e) { console.error('Metrics error:', e); }
+}
+
+async function fetchLogs() {
+    try {
+        const url = logFilter ? `${API}/logs?level=${logFilter}` : `${API}/logs`;
+        const res = await fetch(url, { credentials:'include' });
+        if (res.status === 401) { window.location.href = '/login'; return; }
+        const { data } = await res.json();
+        document.getElementById('logsBody').innerHTML = data.map(l => `
+            <tr>
+                <td>${new Date(l.timestamp).toLocaleTimeString()}</td>
+                <td><span class="log-badge badge-${l.log_level}">${l.log_level}</span></td>
+                <td>${l.message}</td>
+                <td>${l.source}</td>
+                <td>${l.user_id}</td>
+                <td>${l.response_time}ms</td>
+                <td>${l.country}</td>
+                <td>${l.is_anomaly ? '<span class="anomaly-badge">ANOMALY</span>' : ''}</td>
+            </tr>`).join('');
+    } catch(e) { console.error('Logs error:', e); }
+}
+
+async function fetchAlerts() {
+    try {
+        const res = await fetch(`${API}/alerts`, { credentials:'include' });
+        const { data } = await res.json();
+        const el = document.getElementById('alertsList');
+        if (!data.length) { el.innerHTML = '<p class="text-muted" style="font-size:.85rem">No active alerts</p>'; return; }
+        el.innerHTML = data.map(a => `
+            <div class="alert-row ${a.severity}">
+                <i class="fas fa-exclamation-triangle" style="color:${a.severity==='CRITICAL'?'#be185d':'#f59e0b'}"></i>
+                <div><strong>${a.alert_type}</strong> <span style="font-size:.75rem;color:#64748b">${a.severity}</span><br>
+                <small>${a.message}</small></div>
+            </div>`).join('');
+    } catch(e) {}
+}
+
+async function checkAuth() {
+    try {
+        const res = await fetch(`${API}/me`, { credentials:'include' });
+        if (res.status === 401) { window.location.href = '/login'; return false; }
+        const data = await res.json();
+        if (!data.success) { window.location.href = '/login'; return false; }
+        sessionStorage.setItem('username', data.username);
+        sessionStorage.setItem('role', data.role);
+        document.getElementById('sidebarUser').textContent = data.username;
+        document.getElementById('sidebarRole').textContent = data.role;
+        return true;
+    } catch(e) { window.location.href = '/login'; return false; }
+}
+
+async function init() {
+    const ok = await checkAuth();
+    if (!ok) return;
+    initCharts();
+    fetchMetrics();
+    fetchLogs();
+    fetchAlerts();
+    setInterval(() => { fetchMetrics(); fetchLogs(); fetchAlerts(); }, 3000);
+}
+
+init();
+</script>
+</body>
+</html>
